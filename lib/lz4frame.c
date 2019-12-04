@@ -1028,9 +1028,10 @@ typedef enum {
     dstage_getBlockHeader, dstage_storeBlockHeader,
     dstage_copyDirect, dstage_getBlockChecksum,
     dstage_getCBlock, dstage_storeCBlock,
+    dstage_decodeCBlock,
     dstage_flushOut,
-    dstage_getSuffix, dstage_storeSuffix,
-    dstage_getSFrameSize, dstage_storeSFrameSize,
+    dstage_getSuffix, dstage_storeSuffix, dstage_checkSuffix,
+    dstage_getSFrameSize, dstage_storeSFrameSize, dstage_decodeSFrameSize,
     dstage_skipSkippable
 } dStage_t;
 
@@ -1573,17 +1574,22 @@ size_t LZ4F_decompress(LZ4F_dctx* dctx,
             break;
 
         case dstage_getCBlock:
-            if ((size_t)(srcEnd-srcPtr) < dctx->tmpInTarget) {
-                dctx->tmpInSize = 0;
-                dctx->dStage = dstage_storeCBlock;
+            /* check input size, selecting in-place decompression, or internal buffer transfer */
+            if ((size_t)(srcEnd-srcPtr) >= dctx->tmpInTarget) {
+                /* input large enough to read full block directly */
+                selectedIn = srcPtr;
+                srcPtr += dctx->tmpInTarget;
+                dctx->tmpInSize = dctx->tmpInTarget;
+                dctx->dStage = dstage_decodeCBlock;
                 break;
-            }
-            /* input large enough to read full block directly */
-            selectedIn = srcPtr;
-            srcPtr += dctx->tmpInTarget;
+            } 
 
-            if (0)  /* jump over next block */
+            dctx->tmpInSize = 0;
+            dctx->dStage = dstage_storeCBlock;
+            /* fall-through */
+
         case dstage_storeCBlock:
+                /* store input into local buffer */
             {   size_t const wantedData = dctx->tmpInTarget - dctx->tmpInSize;
                 size_t const inputLeft = (size_t)(srcEnd-srcPtr);
                 size_t const sizeToCopy = MIN(wantedData, inputLeft);
@@ -1599,7 +1605,9 @@ size_t LZ4F_decompress(LZ4F_dctx* dctx,
                 }
                 selectedIn = dctx->tmpIn;
             }
+            /* fall-through */
 
+        case dstage_decodeCBlock:
             /* At this stage, input is large enough to decode a block */
             if (dctx->frameInfo.blockChecksumFlag) {
                 dctx->tmpInTarget -= 4;
@@ -1705,23 +1713,28 @@ size_t LZ4F_decompress(LZ4F_dctx* dctx,
             }
 
         case dstage_getSuffix:
-            if (dctx->frameRemainingSize)
+            if (dctx->frameRemainingSize) {
                 return err0r(LZ4F_ERROR_frameSize_wrong);   /* incorrect frame size decoded */
+            }
             if (!dctx->frameInfo.contentChecksumFlag) {  /* no checksum, frame is completed */
                 nextSrcSizeHint = 0;
                 LZ4F_resetDecompressionContext(dctx);
                 doAnotherStage = 0;
                 break;
             }
-            if ((srcEnd - srcPtr) < 4) {  /* not enough size for entire CRC */
-                dctx->tmpInSize = 0;
-                dctx->dStage = dstage_storeSuffix;
-            } else {
+            /* There is a frame checksum to decode */
+            if ((srcEnd - srcPtr) >= 4) {  
                 selectedIn = srcPtr;
                 srcPtr += 4;
+                dctx->dStage = dstage_checkSuffix;
+                break;
             }
+            
+            /* not enough size for entire CRC */
+            dctx->tmpInSize = 0;
+            dctx->dStage = dstage_storeSuffix;
+            /* fall-through */
 
-            if (dctx->dStage == dstage_storeSuffix)   /* can be skipped */
         case dstage_storeSuffix:
             {   size_t const remainingInput = (size_t)(srcEnd - srcPtr);
                 size_t const wantedData = 4 - dctx->tmpInSize;
@@ -1735,9 +1748,10 @@ size_t LZ4F_decompress(LZ4F_dctx* dctx,
                     break;
                 }
                 selectedIn = dctx->tmpIn;
-            }   /* if (dctx->dStage == dstage_storeSuffix) */
+            }   
+            /* fall-through */
 
-        /* case dstage_checkSuffix: */   /* no direct entry, avoid initialization risks */
+       case dstage_checkSuffix: 
             {   U32 const readCRC = LZ4F_readLE32(selectedIn);
                 U32 const resultCRC = XXH32_digest(&(dctx->xxh));
 #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
@@ -1757,14 +1771,16 @@ size_t LZ4F_decompress(LZ4F_dctx* dctx,
             if ((srcEnd - srcPtr) >= 4) {
                 selectedIn = srcPtr;
                 srcPtr += 4;
-            } else {
-                /* not enough input to read cBlockSize field */
-                dctx->tmpInSize = 4;
-                dctx->tmpInTarget = 8;
-                dctx->dStage = dstage_storeSFrameSize;
-            }
+                dctx->dStage = dstage_decodeSFrameSize;
+                break;
+            } 
 
-            if (dctx->dStage == dstage_storeSFrameSize)
+            /* not enough input to read cBlockSize field */
+            dctx->tmpInSize = 4;
+            dctx->tmpInTarget = 8;
+            dctx->dStage = dstage_storeSFrameSize;
+            /* fall-through */   
+
         case dstage_storeSFrameSize:
             {   size_t const sizeToCopy = MIN(dctx->tmpInTarget - dctx->tmpInSize,
                                              (size_t)(srcEnd - srcPtr) );
@@ -1778,9 +1794,10 @@ size_t LZ4F_decompress(LZ4F_dctx* dctx,
                     break;
                 }
                 selectedIn = dctx->header + 4;
-            }   /* if (dctx->dStage == dstage_storeSFrameSize) */
+            }
+            /* fall-through */   
 
-        /* case dstage_decodeSFrameSize: */   /* no direct entry */
+        case dstage_decodeSFrameSize:
             {   size_t const SFrameSize = LZ4F_readLE32(selectedIn);
                 dctx->frameInfo.contentSize = SFrameSize;
                 dctx->tmpInTarget = SFrameSize;
