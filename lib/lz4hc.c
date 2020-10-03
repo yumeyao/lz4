@@ -80,7 +80,7 @@ typedef enum { noDictCtx, usingDictCtxHc } dictCtx_directive;
  * while LZ4_streamHC_t only requires alignment of 4-bytes
  * resulting in initialization error when allocating state with malloc() */
 #if (defined(_MSC_VER) && !defined(_M_X64))
-#  define LZ4_ALIGN_TEST 0
+#  define LZ4_ALIGN_TEST 1 /* test : always check */
 #else
 #  define LZ4_ALIGN_TEST 1
 #endif
