@@ -786,7 +786,7 @@ LZ4_prepareTable(LZ4_stream_t_internal* const cctx,
 
 /** LZ4_compress_generic() :
     inlined, to ensure branches are decided at compilation time */
-LZ4_FORCE_INLINE int LZ4_compress_generic(
+static int LZ4_compress_generic(
                  LZ4_stream_t_internal* const cctx,
                  const char* const source,
                  char* const dest,
@@ -1650,7 +1650,7 @@ read_variable_length(const BYTE**ip, const BYTE* lencheck, int loop_check, int i
  *  Note that it is important for performance that this function really get inlined,
  *  in order to remove useless branches during compilation optimization.
  */
-LZ4_FORCE_INLINE int
+static int
 LZ4_decompress_generic(
                  const char* const src,
                  char* const dst,
