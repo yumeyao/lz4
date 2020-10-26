@@ -64,13 +64,13 @@ ifeq ($(ENABLE_MT),yes)
 SRCFILES_MT := $(SRCFILES:lz4io.c=lz4iomt.cpp)
 OBJFILES_MT := $(OBJFILES:lz4io.o=lz4iomt.o)
 CPPFLAGS += -DLZ4IO_USE_MT
-LZ4_CC := $(CXX) $(FLAGS) $(CXXFLAGS) -pthread
+LZ4_CC ?= $(CXX) $(FLAGS) $(CXXFLAGS) -pthread
 lz4iomt.o: lz4iomt.cpp lz4io.c
 	$(LZ4_CC) -c lz4iomt.cpp -o $@
 else
 SRCFILES_MT := $(SRCFILES)
 OBJFILES_MT := $(OBJFILES)
-LZ4_CC := $(CC) $(FLAGS)
+LZ4_CC ?= $(CC) $(FLAGS)
 endif
 
 default: lz4-release

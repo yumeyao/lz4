@@ -274,6 +274,18 @@ static const int LZ4_minLength = (MFLIMIT+1);
   typedef size_t reg_t;   /* 32-bits in x32 mode */
 #endif
 
+/* judge endianness at compile-time */
+#ifdef _MSC_VER
+#define htole16(x) x
+#define htole32(x) x
+#define htole64(x) x
+#define le16toh(x) x
+#define le32toh(x) x
+#define le64toh(x) x
+#else
+#include <endian.h>
+#endif
+
 typedef enum {
     notLimited = 0,
     limitedOutput = 1,
@@ -361,23 +373,12 @@ static void LZ4_write32(void* memPtr, U32 value)
 
 static U16 LZ4_readLE16(const void* memPtr)
 {
-    if (LZ4_isLittleEndian()) {
-        return LZ4_read16(memPtr);
-    } else {
-        const BYTE* p = (const BYTE*)memPtr;
-        return (U16)((U16)p[0] + (p[1]<<8));
-    }
+    return le16toh(LZ4_read16(memPtr));
 }
 
 static void LZ4_writeLE16(void* memPtr, U16 value)
 {
-    if (LZ4_isLittleEndian()) {
-        LZ4_write16(memPtr, value);
-    } else {
-        BYTE* p = (BYTE*)memPtr;
-        p[0] = (BYTE) value;
-        p[1] = (BYTE)(value>>8);
-    }
+    LZ4_write16(memPtr, htole16(value));
 }
 
 /* customized variant of memcpy, which can overwrite up to 8 bytes beyond dstEnd */

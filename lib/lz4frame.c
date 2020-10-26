@@ -142,52 +142,39 @@ static int g_debuglog_enable = 1;
   typedef unsigned long long  U64;
 #endif
 
+/* judge endianness at compile-time */
+#ifdef _MSC_VER
+#define htole32(x) x
+#define htole64(x) x
+#define le32toh(x) x
+#define le64toh(x) x
+#else
+#include <endian.h>
+#endif
 
 /* unoptimized version; solves endianess & alignment issues */
 static U32 LZ4F_readLE32 (const void* src)
 {
-    const BYTE* const srcPtr = (const BYTE*)src;
-    U32 value32 = srcPtr[0];
-    value32 += ((U32)srcPtr[1])<< 8;
-    value32 += ((U32)srcPtr[2])<<16;
-    value32 += ((U32)srcPtr[3])<<24;
-    return value32;
+    const U32* const srcPtr = (const U32*)src;
+    return le32toh(*srcPtr);
 }
 
 static void LZ4F_writeLE32 (void* dst, U32 value32)
 {
-    BYTE* const dstPtr = (BYTE*)dst;
-    dstPtr[0] = (BYTE)value32;
-    dstPtr[1] = (BYTE)(value32 >> 8);
-    dstPtr[2] = (BYTE)(value32 >> 16);
-    dstPtr[3] = (BYTE)(value32 >> 24);
+    U32* const dstPtr = (U32*)dst;
+    *dstPtr = htole32(value32);
 }
 
 static U64 LZ4F_readLE64 (const void* src)
 {
-    const BYTE* const srcPtr = (const BYTE*)src;
-    U64 value64 = srcPtr[0];
-    value64 += ((U64)srcPtr[1]<<8);
-    value64 += ((U64)srcPtr[2]<<16);
-    value64 += ((U64)srcPtr[3]<<24);
-    value64 += ((U64)srcPtr[4]<<32);
-    value64 += ((U64)srcPtr[5]<<40);
-    value64 += ((U64)srcPtr[6]<<48);
-    value64 += ((U64)srcPtr[7]<<56);
-    return value64;
+    const U64* const srcPtr = (const U64*)src;
+    return le64toh(*srcPtr);
 }
 
 static void LZ4F_writeLE64 (void* dst, U64 value64)
 {
-    BYTE* const dstPtr = (BYTE*)dst;
-    dstPtr[0] = (BYTE)value64;
-    dstPtr[1] = (BYTE)(value64 >> 8);
-    dstPtr[2] = (BYTE)(value64 >> 16);
-    dstPtr[3] = (BYTE)(value64 >> 24);
-    dstPtr[4] = (BYTE)(value64 >> 32);
-    dstPtr[5] = (BYTE)(value64 >> 40);
-    dstPtr[6] = (BYTE)(value64 >> 48);
-    dstPtr[7] = (BYTE)(value64 >> 56);
+    U64* const dstPtr = (U64*)dst;
+    *dstPtr = htole64(value64);
 }
 
 

@@ -40,6 +40,15 @@
 #if defined(__MINGW32__) && !defined(_POSIX_SOURCE)
 #  define _POSIX_SOURCE 1          /* disable %llu warnings with MinGW on Windows */
 #endif
+/* judge endianness at compile-time */
+#ifdef _MSC_VER
+#define htole32(x) x
+#define htole64(x) x
+#define le32toh(x) x
+#define le64toh(x) x
+#else
+#include <endian.h>
+#endif
 
 
 /*****************************
@@ -376,11 +385,8 @@ static FILE* LZ4IO_openDstFile(LZ4IO_prefs_t* const prefs, const char* dstFileNa
 /* unoptimized version; solves endianess & alignment issues */
 static void LZ4IO_writeLE32 (void* p, unsigned value32)
 {
-    unsigned char* const dstPtr = (unsigned char*)p;
-    dstPtr[0] = (unsigned char)value32;
-    dstPtr[1] = (unsigned char)(value32 >> 8);
-    dstPtr[2] = (unsigned char)(value32 >> 16);
-    dstPtr[3] = (unsigned char)(value32 >> 24);
+    unsigned* const dstPtr = (unsigned*)p;
+    *dstPtr = htole32(value32);
 }
 
 static int LZ4IO_LZ4_compress(const char* src, char* dst, int srcSize, int dstSize, int cLevel)
