@@ -124,14 +124,15 @@
 #  ifdef _MSC_VER    /* Visual Studio */
 #    define LZ4_FORCE_INLINE static __forceinline
 #  else
-#    if defined (__cplusplus) || defined (__STDC_VERSION__) && __STDC_VERSION__ >= 199901L   /* C99 */
-#      ifdef __GNUC__
-#        define LZ4_FORCE_INLINE static inline __attribute__((always_inline))
-#      else
-#        define LZ4_FORCE_INLINE static inline
-#      endif
+#    ifdef __GNUC___
+#      define LZ4_ATTRIBUTE_INLINE __attribute__((always_inline))
 #    else
-#      define LZ4_FORCE_INLINE static
+#      define LZ4_ATTRIBUTE_INLINE
+#    endif
+#    if defined (__cplusplus) || defined (__STDC_VERSION__) && __STDC_VERSION__ >= 199901L   /* C99 */
+#      define LZ4_FORCE_INLINE static inline LZ4_ATTRIBUTE_INLINE
+#    else
+#      define LZ4_FORCE_INLINE static LZ4_ATTRIBUTE_INLINE
 #    endif /* __STDC_VERSION__ */
 #  endif  /* _MSC_VER */
 #endif /* LZ4_FORCE_INLINE */
@@ -263,6 +264,18 @@ static int g_debuglog_enable = 1;
   typedef size_t reg_t;   /* 32-bits in x32 mode */
 #endif
 
+/* judge endianness at compile-time */
+#ifdef _MSC_VER
+#define htole16(x) x
+#define htole32(x) x
+#define htole64(x) x
+#define le16toh(x) x
+#define le32toh(x) x
+#define le64toh(x) x
+#else
+#include <endian.h>
+#endif
+
 typedef enum {
     notLimited = 0,
     limitedOutput = 1,
@@ -335,23 +348,12 @@ static void LZ4_write32(void* memPtr, U32 value)
 
 static U16 LZ4_readLE16(const void* memPtr)
 {
-    if (LZ4_isLittleEndian()) {
-        return LZ4_read16(memPtr);
-    } else {
-        const BYTE* p = (const BYTE*)memPtr;
-        return (U16)((U16)p[0] + (p[1]<<8));
-    }
+    return le16toh(LZ4_read16(memPtr));
 }
 
 static void LZ4_writeLE16(void* memPtr, U16 value)
 {
-    if (LZ4_isLittleEndian()) {
-        LZ4_write16(memPtr, value);
-    } else {
-        BYTE* p = (BYTE*)memPtr;
-        p[0] = (BYTE) value;
-        p[1] = (BYTE)(value>>8);
-    }
+    LZ4_write16(memPtr, htole16(value));
 }
 
 /* customized variant of memcpy, which can overwrite up to 8 bytes beyond dstEnd */
@@ -786,7 +788,7 @@ LZ4_prepareTable(LZ4_stream_t_internal* const cctx,
 
 /** LZ4_compress_generic() :
     inlined, to ensure branches are decided at compilation time */
-LZ4_FORCE_INLINE int LZ4_compress_generic(
+static int LZ4_compress_generic(
                  LZ4_stream_t_internal* const cctx,
                  const char* const source,
                  char* const dest,
@@ -1650,7 +1652,7 @@ read_variable_length(const BYTE**ip, const BYTE* lencheck, int loop_check, int i
  *  Note that it is important for performance that this function really get inlined,
  *  in order to remove useless branches during compilation optimization.
  */
-LZ4_FORCE_INLINE int
+static int
 LZ4_decompress_generic(
                  const char* const src,
                  char* const dst,
